@@ -1,0 +1,37 @@
+[
+  {
+    "id": "manual_1753477310823_n6dbsobzt",
+    "name": "Rare Brew",
+    "address": "2518 Roosevelt Ave, Indianapolis, IN 46208, United States",
+    "lat": 39.7934822,
+    "lng": -86.1195856,
+    "contact": "conact",
+    "email": "brian@rarebrew.com",
+    "phone": "3179790216",
+    "channel": "TEST",
+    "submittedAt": "2025-07-25T20:58:56.096Z",
+    "rejectedAt": "2025-07-25T21:01:25.079Z",
+    "rejectionReason": "no",
+    "skus": [
+      "LT-BLK-AC-16-WH",
+      "LT-BLK-BAM-16-WH",
+      "LT-BLK-BEG-16-WH",
+      "LT-BLK-BGP-16-WH",
+      "LT-BLK-DCC-16-WH",
+      "LT-BLK-GPC-16-WH",
+      "LT-BLK-MMC-16-WH",
+      "LT-BLK-MP-16-WH",
+      "LT-BLK-RP-16-WH",
+      "ST-BTL-BGP-12-WS",
+      "ST-BTL-CL-12-WS",
+      "ST-BTL-GTP-12-WS",
+      "ST-BTL-PM-12-WS",
+      "ST-BTL-PT-12-WS",
+      "ST-BTL-PTH-12-WS",
+      "ST-BTL-RH-12-WS",
+      "ST-VAR-TOP-12-WS"
+    ],
+    "isManual": true,
+    "status": "rejected"
+  }
+]

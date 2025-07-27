@@ -1,0 +1,749 @@
+{% comment %}
+  Template: page.map.liquid
+  - This template creates a full page with a Google Map showing store locations
+  - Ensure you have the necessary JavaScript loaded in your theme.liquid file
+{% endcomment %}
+
+<div class="page-width page-content">
+  <header class="section-header">
+    <h1 class="section-header__title">{{ page.title }}</h1>
+  </header>
+  {{ page.content }}
+  <div class=""rte rte--nomargin">
+    <div id="map-container" style="height: 600px; width: 100%; min-height: 400px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;"></div>
+    <div id="list-container"></div>
+  </div>
+</div>
+
+<script>
+  // Production-ready map implementation - ES5 compatible, works in all browsers
+  (function() {
+    'use strict';
+    
+    // Global variables
+    var map;
+    var clusterer;
+    var markers = [];
+    var infoWindow;
+    var initRetryCount = 0;
+    var maxInitRetries = 20; // 10 seconds max wait time
+    
+    // Map center (US)
+    var mapCenter = { lat: 39.8283, lng: -98.5795 };
+    
+    // Shared styling function
+    function getCardStyles() {
+      return {
+        container: 'background: #f9f9f9; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s ease, box-shadow 0.2s ease;',
+        title: 'margin: 0 0 12px 0; color: #333; font-size: 18px; font-weight: 600;',
+        address: 'margin: 0 0 16px 0; color: #666; line-height: 1.4;',
+        addressLink: 'color: #0066cc; text-decoration: none;',
+        sectionTitle: 'margin: 0 0 8px 0; color: #333; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;',
+        content: 'color: #555; font-size: 14px; line-height: 1.5;',
+        fontFamily: 'Futura, sans-serif;'
+      };
+    }
+    
+    // Create location card HTML
+    function createLocationCard(location) {
+      var styles = getCardStyles();
+      var encodedAddress = encodeURIComponent(location.address);
+      var mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedAddress;
+      
+      return '<h3 style="' + styles.title + '">' + location.name + '</h3>' +
+             '<p style="' + styles.address + '"><a href="' + mapsUrl + '" target="_blank" style="' + styles.addressLink + '">' + formatAddress(location.address) + '</a></p>' +
+             '<div style="margin-top: 16px;">' +
+             '<h4 style="' + styles.sectionTitle + '">Products Carried</h4>' +
+             '<div style="' + styles.content + '">' + getProductsList(location) + '</div>' +
+             '</div>';
+    }
+    
+    // Product names mapping
+    var productNames = [
+      {
+        "sku": "LT-BLK-AC-16-WH",
+        "name": "Apricots & Cream",
+        "url": "https://rarebrew.com/products/apricots-cream"
+      },
+      {
+        "sku": "LT-BLK-BAM-16-WH",
+        "name": "Blueberry Acai Mojito",
+        "url": "https://rarebrew.com/products/blueberry-acai-mojito"
+      },
+      {
+        "sku": "LT-BLK-BEG-16-WH",
+        "name": "Blueberry Earl Grey",
+        "url": "https://rarebrew.com/products/blueberry-earl-grey"
+      },
+      {
+        "sku": "LT-BLK-BGP-16-WH",
+        "name": "Bourbon Ginger Pear",
+        "url": "https://rarebrew.com/products/bourbon-ginger-pear"
+      },
+      {
+        "sku": "LT-BLK-DCC-16-WH",
+        "name": "Dark Chocolate Cherry",
+        "url": "https://rarebrew.com/products/dark-chocolate-cherry"
+      },
+      {
+        "sku": "LT-BLK-GPC-16-WH",
+        "name": "Green Tea Piña Colada",
+        "url": "https://rarebrew.com/products/green-tea-pina-colada"
+      },
+      {
+        "sku": "LT-BLK-MMC-16-WH",
+        "name": "Matcha Mind Control",
+        "url": "https://rarebrew.com/products/matcha-mind-control"
+      },
+      {
+        "sku": "LT-BLK-MP-16-WH",
+        "name": "Mango Passionfruit",
+        "url": "https://rarebrew.com/products/mango-passion"
+      },
+      {
+        "sku": "LT-BLK-RP-16-WH",
+        "name": "Raspberry Pomegranate",
+        "url": "https://rarebrew.com/products/raspberry-pomegranate"
+      },
+      {
+        "sku": "LT-PKG-AC-1P5-WS",
+        "name": "Apricots & Cream",
+        "url": "https://rarebrew.com/products/apricots-cream"
+      },
+      {
+        "sku": "LT-PKG-BAM-1P5-WS",
+        "name": "Blueberry Acai Mojito",
+        "url": "https://rarebrew.com/products/blueberry-acai-mojito"
+      },
+      {
+        "sku": "LT-PKG-BEG-1P5-WS",
+        "name": "Blueberry Earl Grey",
+        "url": "https://rarebrew.com/products/blueberry-earl-grey"
+      },
+      {
+        "sku": "LT-PKG-BGP-1P5-WS",
+        "name": "Bourbon Ginger Pear",
+        "url": "https://rarebrew.com/products/bourbon-ginger-pear"
+      },
+      {
+        "sku": "LT-PKG-DCC-1P5-WS",
+        "name": "Dark Chocolate Cherry",
+        "url": "https://rarebrew.com/products/dark-chocolate-cherry"
+      },
+      {
+        "sku": "LT-PKG-GPC-1P5-WS",
+        "name": "Green Tea Piña Colada",
+        "url": "https://rarebrew.com/products/green-tea-pina-colada"
+      },
+      {
+        "sku": "LT-PKG-MMC-1P5-WS",
+        "name": "Matcha Mind Control",
+        "url": "https://rarebrew.com/products/matcha-mind-control"
+      },
+      {
+        "sku": "LT-PKG-MP-1P5-WS",
+        "name": "Mango Passionfruit",
+        "url": "https://rarebrew.com/products/mango-passion"
+      },
+      {
+        "sku": "LT-PKG-RP-1P5-WS",
+        "name": "Raspberry Pomegranate",
+        "url": "https://rarebrew.com/products/raspberry-pomegranate"
+      },
+      {
+        "sku": "ST-BTL-BGP-12-WS",
+        "name": "Bourbon Ginger Pear",
+        "url": "https://rarebrew.com/products/bourbon-ginger-pear-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-CL-12-WS",
+        "name": "Cherry Lime",
+        "url": "https://rarebrew.com/products/cherry-lime-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-GTP-12-WS",
+        "name": "Green Tea Pilsner",
+        "url": "https://rarebrew.com/products/green-tea-pilsner-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-PM-12-WS",
+        "name": "Pineapple Melon",
+        "url": "https://rarebrew.com/products/pineapple-melon-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-PT-12-WS",
+        "name": "Passionfruit Tangerine",
+        "url": "https://rarebrew.com/products/passionfruit-tangerine-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-PTH-12-WS",
+        "name": "Peach Tree Hops",
+        "url": "https://rarebrew.com/products/peach-tree-hops-sparkling-tea"
+      },
+      {
+        "sku": "ST-BTL-RH-12-WS",
+        "name": "Raspberry Hibiscus",
+        "url": "https://rarebrew.com/products/raspberry-hibiscus-sparkling-tea"
+      },
+      {
+        "sku": "ST-KEG-BGP-640",
+        "name": "Bourbon Ginger Pear",
+        "url": "https://rarebrew.com/products/bourbon-ginger-pear-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-CL-640",
+        "name": "Cherry Lime",
+        "url": "https://rarebrew.com/products/cherry-lime-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-GTP-640",
+        "name": "Green Tea Pilsner",
+        "url": "https://rarebrew.com/products/green-tea-pilsner-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-PM-640",
+        "name": "Pineapple Melon",
+        "url": "https://rarebrew.com/products/pineapple-melon-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-PT-640",
+        "name": "Passionfruit Tangerine",
+        "url": "https://rarebrew.com/products/passionfruit-tangerine-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-PTH-640",
+        "name": "Peach Tree Hops",
+        "url": "https://rarebrew.com/products/peach-tree-hops-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-KEG-RH-640",
+        "name": "Raspberry Hibiscus",
+        "url": "https://rarebrew.com/products/raspberry-hibiscus-sparkling-tea-keg"
+      },
+      {
+        "sku": "ST-VAR-TOP-12-WS",
+        "name": "Variety Pack",
+        "url": "https://rarebrew.com/products/variety-pack-sparkling-tea"
+      }
+    ];
+
+    // Define variety pack flavors for expansion
+    var varietyPackFlavors = [
+      { sku: "ST-BTL-BGP-12-WS", name: "Bourbon Ginger Pear", url: "https://rarebrew.com/products/bourbon-ginger-pear-sparkling-tea" },
+      { sku: "ST-BTL-CL-12-WS", name: "Cherry Lime", url: "https://rarebrew.com/products/cherry-lime-sparkling-tea" },
+      { sku: "ST-BTL-GTP-12-WS", name: "Green Tea Pilsner", url: "https://rarebrew.com/products/green-tea-pilsner-sparkling-tea" },
+      { sku: "ST-BTL-PM-12-WS", name: "Pineapple Melon", url: "https://rarebrew.com/products/pineapple-melon-sparkling-tea" },
+      { sku: "ST-BTL-PT-12-WS", name: "Passionfruit Tangerine", url: "https://rarebrew.com/products/passionfruit-tangerine-sparkling-tea" },
+      { sku: "ST-BTL-PTH-12-WS", name: "Peach Tree Hops", url: "https://rarebrew.com/products/peach-tree-hops-sparkling-tea" },
+      { sku: "ST-BTL-RH-12-WS", name: "Raspberry Hibiscus", url: "https://rarebrew.com/products/raspberry-hibiscus-sparkling-tea" }
+    ];
+    
+    // Add legacy skus to products.
+    // These can be removed after 1/20/2026.
+    // Also remove the following from the if blocks below:
+    //  || sku === "VP-WS-STB"
+    //  || sku.endsWith('-STB') || sku.includes('-STK')
+    //  || sku.endsWith('-LLTR') || sku.endsWith('-LLTB')
+    productNames.push(
+      {
+        sku: "BGP-WS-STB",
+        name: "Bourbon Ginger Pear",
+        url: "https://rarebrew.com/products/bourbon-ginger-pear-sparkling-tea",
+      },
+      {
+        sku: "CL-WS-STB",
+        name: "Cherry Lime",
+        url: "https://rarebrew.com/products/cherry-lime-sparkling-tea",
+      },
+      {
+        sku: "GTP-WS-STB",
+        name: "Green Tea Pilsner",
+        url: "https://rarebrew.com/products/green-tea-pilsner-sparkling-tea",
+      },
+      {
+        sku: "PT-WS-STB",
+        name: "Passionfruit Tangerine",
+        url: "https://rarebrew.com/products/passionfruit-tangerine-sparkling-tea",
+      },
+      {
+        sku: "PTH-WS-STB",
+        name: "Peach Tree Hops",
+        url: "https://rarebrew.com/products/peach-tree-hops-sparkling-tea",
+      },
+      {
+        sku: "PM-WS-STB",
+        name: "Pineapple Melon",
+        url: "https://rarebrew.com/products/pineapple-melon-sparkling-tea",
+      },
+      {
+        sku: "RH-WS-STB",
+        name: "Raspberry Hibiscus",
+        url: "https://rarebrew.com/products/raspberry-hibiscus-sparkling-tea",
+      },
+      {
+        sku: "VP-WS-STB",
+        name: "Variety Pack",
+        url: "https://rarebrew.com/products/variety-pack-sparkling-tea",
+      },
+      {
+        sku: "BAM-WS-LLTR",
+        name: "Blueberry Acai Mojito",
+        url: "https://rarebrew.com/products/blueberry-acai-mojito",
+      },
+      {
+        sku: "BEG-WS-LLTR",
+        name: "Blueberry Earl Grey",
+        url: "https://rarebrew.com/products/blueberry-earl-grey",
+      },
+      {
+        sku: "GTPC-WS-LLTR",
+        name: "Green Tea Piña Colada",
+        url: "https://rarebrew.com/products/green-tea-pina-colada",
+      },
+      {
+        sku: "AC-WS-LLTR",
+        name: "Apricots & Cream",
+        url: "https://rarebrew.com/products/apricots-cream",
+      },
+      {
+        sku: "MP-WS-LLTR",
+        name: "Mango Passion",
+        url: "https://rarebrew.com/products/mango-passion",
+      },
+      {
+        sku: "BGP-WS-LLTR",
+        name: "Bourbon Ginger Pear",
+        url: "https://rarebrew.com/products/bourbon-ginger-pear",
+      },
+      {
+        sku: "DCC-WS-LLTR",
+        name: "Dark Chocolate Cherry",
+        url: "https://rarebrew.com/products/dark-chocolate-cherry",
+      },
+      {
+        sku: "RP-WS-LLTR",
+        name: "Raspberry Pomegranate",
+        url: "https://rarebrew.com/products/raspberry-pomegranate",
+      },
+      {
+        sku: "MMC-WS-LLTB",
+        name: "Matcha Mind Control",
+        url: "https://rarebrew.com/products/matcha-mind-control",
+      },
+      {
+        sku: "WS-STK-PT",
+        name: "Passionfruit Tangerine",
+        url: "https://rarebrew.com/products/passionfruit-tangerine-sparkling-tea",
+      },
+      {
+        sku: "BGP-WS-STK",
+        name: "Bourbon Ginger Pear",
+        url: "https://rarebrew.com/products/bourbon-ginger-pear-sparkling-tea",
+      }
+    );
+    
+    // Initialize when page loads
+    function init() {
+      // Check if required data is available with retry logic
+      if (typeof storeLocations === 'undefined' || !storeLocations || !storeLocations.length) {
+        initRetryCount++;
+        
+        if (initRetryCount >= maxInitRetries) {
+          console.error('Store locations data not available after', maxInitRetries, 'retries. Please refresh the page.');
+          // Show user-friendly error message
+          var mapContainer = document.getElementById('map-container');
+          if (mapContainer) {
+            mapContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">' +
+                                   '<h3>Map Loading Issue</h3>' +
+                                   '<p>Unable to load store locations. Please refresh the page or try again later.</p>' +
+                                   '<button onclick="location.reload()" style="padding: 10px 20px; background: #D4AF37; color: white; border: none; border-radius: 3px; cursor: pointer;">Refresh Page</button>' +
+                                   '</div>';
+          }
+          return;
+        }
+        
+        setTimeout(init, 500);
+        return;
+      }
+      
+      // Initialize map
+      initMap();
+      
+      // Initialize list
+      initList();
+    }
+    
+    // Initialize Google Maps
+    function initMap() {
+      // Check if data is available
+      if (!window.storeLocations || !window.storeLocations.length) {
+        console.error('No location data available');
+        return;
+      }
+      
+      // Map options
+      var mapOptions = {
+        zoom: 4,
+        center: mapCenter,
+        gestureHandling: 'cooperative', // Better mobile handling
+        zoomControl: true,
+        mapTypeControl: false,
+        scaleControl: true,
+        streetViewControl: false,
+        rotateControl: false,
+        fullscreenControl: false,
+        zoomControlOptions: {
+          position: google.maps.ControlPosition.RIGHT_TOP,
+          style: google.maps.ZoomControlStyle.LARGE
+        },
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+      };
+      
+      // Create map
+      map = new google.maps.Map(document.getElementById("map-container"), mapOptions);
+      
+      // Create info window
+      infoWindow = new google.maps.InfoWindow();
+      
+      // Wait for map to be idle before creating markers and clusterer
+      google.maps.event.addListenerOnce(map, 'idle', function() {
+        // Create markers
+        createMarkers();
+        
+        // Create clusterer
+        createClusterer();
+        
+        // Add controls
+        addLocationButton();
+      });
+    }
+    
+    // Create markers
+    function createMarkers() {
+      markers = storeLocations.map(function(location, index) {
+        // Create marker element
+        var markerElement = createMarkerElement();
+        
+        // Create marker
+        var marker = new google.maps.Marker({
+          position: { lat: location.lat, lng: location.lng },
+          title: location.name,
+          icon: {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(markerElement.outerHTML),
+            scaledSize: new google.maps.Size(30, 30)
+          }
+        });
+        
+        // Add click listener
+        marker.addListener('click', function() {
+          showInfoWindow(marker, location);
+        });
+        
+        return marker;
+      });
+    }
+    
+    // Create marker element
+    function createMarkerElement() {
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="30" height="30">' +
+                 '<circle cx="15" cy="15" r="14.5" fill="#000000" stroke="#D4AF37" stroke-width="1" />' +
+                 '<g transform="translate(5, 5) scale(0.83)">' +
+                 '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#D4AF37"/>' +
+                 '</g>' +
+                 '</svg>';
+      
+      var element = document.createElement('div');
+      element.innerHTML = svg;
+      return element.firstChild;
+    }
+    
+    // Create clusterer
+    function createClusterer() {
+      // Create renderer for custom cluster icons
+      var renderer = {
+        render: function(params) {
+          var count = params.count;
+          var size = Math.min(70, 30 + (count * 2));
+          
+          var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" width="' + size + '" height="' + size + '">' +
+                     '<circle cx="' + (size/2) + '" cy="' + (size/2) + '" r="' + (size/2) + '" fill="#D4AF37" />' +
+                     '<text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="black" font-size="' + (size/3) + '" font-weight="400" font-family="Futura, sans-serif">' + count + '</text>' +
+                     '</svg>';
+          
+          var element = document.createElement('div');
+          element.innerHTML = svg;
+          
+          var marker = new google.maps.Marker({
+            position: params.position,
+            icon: {
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(element.firstChild.outerHTML),
+              scaledSize: new google.maps.Size(size, size)
+            }
+          });
+          
+          return marker;
+        }
+      };
+      
+      // Create clusterer with proper options
+      clusterer = new markerClusterer.MarkerClusterer({
+        map: map,
+        markers: markers,
+        renderer: renderer
+      });
+    }
+    
+    // Show info window
+    function showInfoWindow(marker, location) {
+      var styles = getCardStyles();
+      
+      var content = '<div style="max-width: 350px; padding: 0; font-family: ' + styles.fontFamily + ';">' +
+                    '<div style="' + styles.container + '">' +
+                    createLocationCard(location) +
+                    '</div>' +
+                    '</div>';
+      
+      infoWindow.setContent(content);
+      infoWindow.open(map, marker);
+    }
+    
+    // Format address
+    function formatAddress(address) {
+      var parts = address.split(',').map(function(part) { 
+        return part.trim(); 
+      });
+      
+      if (parts.length < 4) return address;
+      
+      var country = parts.pop();
+      var stateZip = parts.pop();
+      var city = parts.pop();
+      var streetAddress = parts.join(',');
+      
+      return streetAddress + '<br />' + city + ', ' + stateZip + '<br />' + country;
+    }
+    
+    // Get products list
+    function getProductsList(location) {
+      if (!location.skus || !location.skus.length) {
+        return '<div style="color: #999; font-style: italic;">No product information available</div>';
+      }
+      
+      // Create sets to avoid duplicates
+      var existingSkus = new Set(location.skus);
+      var processedProductNames = new Set();
+      
+      // Categorize products
+      var sparklingTeaProducts = [];
+      var looseLeafTeaProducts = [];
+      
+      // Process each SKU
+      location.skus.forEach(function(sku) {
+        var product = productNames.find(p => p.sku === sku);
+        
+        if (product) {
+          // Check if this is a variety pack
+          if (sku === "ST-VAR-TOP-12-WS" || sku === "VP-WS-STB") {
+            // Expand variety pack into individual flavors, avoiding duplicates
+            varietyPackFlavors.forEach(function(flavor) {
+              if (!processedProductNames.has(flavor.name)) {
+                processedProductNames.add(flavor.name);
+                sparklingTeaProducts.push({
+                  name: flavor.name,
+                  url: flavor.url
+                });
+              }
+            });
+          } else {
+            // Categorize regular products
+            if (!processedProductNames.has(product.name)) {
+              processedProductNames.add(product.name);
+              
+              var productInfo = {
+                name: product.name,
+                url: product.url
+              };
+              
+              // Determine category based on SKU patterns
+              if (sku.startsWith('ST-') || sku.endsWith('-STB') || sku.includes('-STK')) {
+                sparklingTeaProducts.push(productInfo);
+              } else if (sku.startsWith('LT-') || sku.endsWith('-LLTR') || sku.endsWith('-LLTB')) {
+                looseLeafTeaProducts.push(productInfo);
+              } else {
+                // Default to sparkling tea for unknown patterns
+                sparklingTeaProducts.push(productInfo);
+              }
+            }
+          }
+        } else {
+          // Unknown SKU - categorize based on pattern
+          var unknownProductName = 'SKU: ' + sku;
+          if (!processedProductNames.has(unknownProductName)) {
+            processedProductNames.add(unknownProductName);
+            
+            if (sku.startsWith('ST-') || sku.endsWith('-STB') || sku.includes('-STK')) {
+              sparklingTeaProducts.push({ name: unknownProductName, url: '#' });
+            } else if (sku.startsWith('LT-') || sku.endsWith('-LLTR') || sku.endsWith('-LLTB')) {
+              looseLeafTeaProducts.push({ name: unknownProductName, url: '#' });
+            } else {
+              sparklingTeaProducts.push({ name: unknownProductName, url: '#' });
+            }
+          }
+        }
+      });
+      
+      // Build the HTML
+      var html = '';
+      
+      // Sparkling Tea section
+      if (sparklingTeaProducts.length > 0) {
+        html += '<div style="margin-bottom: 16px;">';
+        html += '<div style="display: flex; align-items: center; margin-bottom: 8px;">';
+        html += '<span style="background: #D4AF37; color: #000; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px;">Sparkling Tea</span>';
+        html += '<span style="color: #999; font-size: 12px;">' + sparklingTeaProducts.length + ' product' + (sparklingTeaProducts.length !== 1 ? 's' : '') + '</span>';
+        html += '</div>';
+        html += '<div style="display: flex; flex-wrap: wrap; gap: 6px;">';
+        sparklingTeaProducts.forEach(function(product) {
+          if (product.url === '#') {
+            html += '<span style="background: #f0f0f0; color: #666; padding: 4px 8px; border-radius: 4px; font-size: 13px; display: inline-block;">' + product.name + '</span>';
+          } else {
+            html += '<a href="' + product.url + '" target="_blank" style="background: #e8f4f8; color: #0066cc; padding: 4px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; display: inline-block; transition: background-color 0.2s ease;">' + product.name + '</a>';
+          }
+        });
+        html += '</div>';
+        html += '</div>';
+      }
+      
+      // Loose Leaf Tea section
+      if (looseLeafTeaProducts.length > 0) {
+        html += '<div style="margin-bottom: 16px;">';
+        html += '<div style="display: flex; align-items: center; margin-bottom: 8px;">';
+        html += '<span style="background: #2c5530; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 8px;">Loose Leaf Tea</span>';
+        html += '<span style="color: #999; font-size: 12px;">' + looseLeafTeaProducts.length + ' product' + (looseLeafTeaProducts.length !== 1 ? 's' : '') + '</span>';
+        html += '</div>';
+        html += '<div style="display: flex; flex-wrap: wrap; gap: 6px;">';
+        looseLeafTeaProducts.forEach(function(product) {
+          if (product.url === '#') {
+            html += '<span style="background: #f0f0f0; color: #666; padding: 4px 8px; border-radius: 4px; font-size: 13px; display: inline-block;">' + product.name + '</span>';
+          } else {
+            html += '<a href="' + product.url + '" target="_blank" style="background: #f0f8f0; color: #2c5530; padding: 4px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; display: inline-block; transition: background-color 0.2s ease;">' + product.name + '</a>';
+          }
+        });
+        html += '</div>';
+        html += '</div>';
+      }
+      
+      return html;
+    }
+    
+    // Add location button
+    function addLocationButton() {
+      var controlDiv = document.createElement('div');
+      controlDiv.style.cssText = 'margin: 10px; padding: 0px; position: absolute; right: 0px; bottom: 0px; z-index: 1000; background-color: white; box-shadow: 0 1px 4px rgba(0,0,0,.2); cursor: pointer;';
+
+      var firstChild = document.createElement('button');
+      firstChild.style.cssText = 'background-color: white; border: none; margin: 10px; padding: 0px; font: Roboto,Arial,sans-serif; font-size: 11px; color: rgb(86, 86, 86);';
+      firstChild.title = 'Your Location';
+      firstChild.textContent = '📍';
+      firstChild.style.fontSize = '18px';
+      
+      controlDiv.appendChild(firstChild);
+
+      firstChild.addEventListener('click', function() {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            var latlng = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+            map.setCenter(latlng);
+            map.setZoom(11);
+          });
+        }
+      });
+
+      map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(controlDiv);
+    }
+
+    // Initialize list
+    function initList() {
+      var listContainer = document.getElementById('list-container');
+      var styles = getCardStyles();
+      
+      // Create grid container
+      var gridContainer = document.createElement('div');
+      gridContainer.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 20px;';
+      
+      // Sort locations by name
+      var sortedLocations = storeLocations.slice().sort(function(a, b) {
+        return a.name.localeCompare(b.name);
+      });
+      
+      sortedLocations.forEach(function(location) {
+        var locationCard = document.createElement('div');
+        locationCard.style.cssText = styles.container;
+        
+        // Add hover effect
+        locationCard.addEventListener('mouseenter', function() {
+          this.style.transform = 'translateY(-2px)';
+          this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+        });
+        
+        locationCard.addEventListener('mouseleave', function() {
+          this.style.transform = 'translateY(0)';
+          this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        });
+        
+        locationCard.innerHTML = createLocationCard(location);
+        gridContainer.appendChild(locationCard);
+      });
+      
+      listContainer.appendChild(gridContainer);
+    }
+    
+    // Wait for Google Maps and clusterer to load
+    function waitForDependencies() {
+      var maxAttempts = 100;
+      var attempts = 0;
+      
+      function check() {
+        attempts++;
+        
+        if (window.google && window.google.maps && window.markerClusterer) {
+          init();
+          return;
+        }
+        
+        if (attempts >= maxAttempts) {
+          console.error('Dependencies failed to load after', maxAttempts, 'attempts');
+          return;
+        }
+        
+        setTimeout(check, 100);
+      }
+      
+      check();
+    }
+    
+    // Watch for storeLocations data becoming available
+    function watchForData() {
+      if (typeof storeLocations !== 'undefined' && storeLocations && storeLocations.length) {
+        // If map hasn't been initialized yet, initialize it
+        if (!map && initRetryCount < maxInitRetries) {
+          init();
+        }
+      } else {
+        // Check again in 1 second
+        setTimeout(watchForData, 1000);
+      }
+    }
+    
+    // Start when page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', waitForDependencies);
+    } else {
+      waitForDependencies();
+    }
+    
+    // Start watching for data after a short delay
+    setTimeout(watchForData, 1000);
+    
+  })();
+</script>
